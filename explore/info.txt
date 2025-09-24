@@ -20,8 +20,13 @@ python cerra_534_adaption_deep_learning.py direct ../../../dataset/CERRA-534/ vi
 
 ## form home
 python heatwaves/experiments/forecasting/cerra_534_adaption_deep_learning.py direct dataset/CERRA-534/ vit 6
+python heatwaves/experiments/forecasting/cerra_534_adaption_deep_learning.py --bs=16 direct dataset/CERRA-534/ vit 6
 
 ## from heatwaves
 python experiments/forecasting/cerra_534_adaption_deep_learning.py direct ../dataset/CERRA-534/ vit 6
+
+## tmux
+
+tmux attach -t 0 
 
 
