@@ -11,9 +11,17 @@ Inspecting 2018_0.npz
 Keys: ['2m_temperature']
 2m_temperature shape: (73, 1, 534, 534) dtype: float32 min/max: 213.50172424316406 304.29461669921875
 
-(channels, 1, dim1, dim2)
+(channels, 1, dim1, dim2)?
 
 # comand for running:
+
+## form forecasting
 python cerra_534_adaption_deep_learning.py direct ../../../dataset/CERRA-534/ vit 6
 
-python climate_learn_git/experiments/forecasting/cerra_534_adaption_deep_learning.py direct dataset/CERRA-534/ vit 6
+## form home
+python heatwaves/experiments/forecasting/cerra_534_adaption_deep_learning.py direct dataset/CERRA-534/ vit 6
+
+## from heatwaves
+python experiments/forecasting/cerra_534_adaption_deep_learning.py direct ../dataset/CERRA-534/ vit 6
+
+
