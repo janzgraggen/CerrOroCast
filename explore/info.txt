@@ -1,0 +1,19 @@
+train: 121 files; first 5: ['2018_0.npz', '2018_1.npz', '2018_10.npz', '2018_11.npz', '2018_12.npz']
+val: 41 files; first 5: ['2021_0.npz', '2021_1.npz', '2021_10.npz', '2021_11.npz', '2021_12.npz']
+test: 41 files; first 5: ['2021_0.npz', '2021_1.npz', '2021_10.npz', '2021_11.npz', '2021_12.npz']
+
+Root files: ['lon.npy', 'normalize_std.npz', '.DS_Store', 'orography.npz', 'lat.npy', 'normalize_mean.npz']
+lat.shape: (534, 534) lon.shape: (534, 534) lat min/max: 20.320306722080634 75.28193406069948 lon min/max: 0.028681817695038643 359.9707966376347
+normalize_mean.npz -> keys: ['2m_temperature']
+normalize_std.npz -> keys: ['2m_temperature']
+
+Inspecting 2018_0.npz
+Keys: ['2m_temperature']
+2m_temperature shape: (73, 1, 534, 534) dtype: float32 min/max: 213.50172424316406 304.29461669921875
+
+(channels, 1, dim1, dim2)
+
+# comand for running:
+python cerra_534_adaption_deep_learning.py direct ../../../dataset/CERRA-534/ vit 6
+
+python climate_learn_git/experiments/forecasting/cerra_534_adaption_deep_learning.py direct dataset/CERRA-534/ vit 6
