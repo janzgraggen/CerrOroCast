@@ -172,7 +172,7 @@ model = cl.load_forecasting_module(
 pl.seed_everything(0)
 default_root_dir = f"{args.model}_{args.forecast_type}_forecasting_{args.pred_range}"
 logger = TensorBoardLogger(save_dir=f"{default_root_dir}/logs")
-early_stopping = "val/lat_mse:aggregate"
+early_stopping = "val/rmse:aggregate" ## available: `train/mse:aggregate`, `val/rmse:2m_temperature`, `val/rmse:aggregate`
 callbacks = [
     RichProgressBar(),
     RichModelSummary(max_depth=args.summary_depth),
