@@ -8,7 +8,6 @@ from climate_learn.data.processing.era5_constants import (
     DEFAULT_PRESSURE_LEVELS,
 )
 import pytorch_lightning as pl
-import torch
 from pytorch_lightning.callbacks import (
     EarlyStopping,
     ModelCheckpoint,
@@ -21,10 +20,11 @@ from pytorch_lightning.loggers.tensorboard import TensorBoardLogger
 parser = ArgumentParser()
 
 parser.add_argument("--summary_depth", type=int, default=1)
-parser.add_argument("--max_epochs", type=int, default=50)
+parser.add_argument("--max_epochs", type=int, default=20)
 parser.add_argument("--patience", type=int, default=5)
 parser.add_argument("--gpu", type=int, default=0)
 parser.add_argument("--checkpoint", default=None)
+parser.add_argument("--bs", type=int, default=16)
 
 subparsers = parser.add_subparsers(
     help="Whether to perform direct, iterative, or continuous forecasting.",
@@ -85,8 +85,8 @@ if args.forecast_type in ("direct", "iterative"):
         window=6,
         pred_range=args.pred_range,
         subsample=6,
-        batch_size=32,
-        num_workers=4,
+        batch_size=args.bs, ## reduce for memory (-> test) #32 or 128
+        num_workers=16,
     )
 elif args.forecast_type == "continuous":
     dm = cl.data.IterDataModule(
@@ -116,7 +116,7 @@ if args.forecast_type == "continuous":
 if args.forecast_type == "iterative":  # iterative predicts every var
     out_channels = in_channels
 else:
-    out_channels = 3
+    out_channels = 1
 if args.model == "resnet":
     model_kwargs = {  # override some of the defaults
         "in_channels": in_channels,
@@ -138,17 +138,17 @@ elif args.model == "vit":
         "in_channels": in_channels,
         "out_channels": out_channels,
         "history": 3,
-        "patch_size": 2,
-        "embed_dim": 128,
-        "depth": 8,
-        "decoder_depth": 2,
+        "patch_size": 6, #2
+        "embed_dim": 64, #128
+        "depth": 4, # 8
+        "decoder_depth": 2, #2
         "learn_pos_emb": True,
         "num_heads": 4,
     }
 optim_kwargs = {"lr": 5e-4, "weight_decay": 1e-5, "betas": (0.9, 0.99)}
 sched_kwargs = {
     "warmup_epochs": 5,
-    "max_epochs": 50,
+    "max_epochs": 20,
     "warmup_start_lr": 1e-8,
     "eta_min": 1e-8,
 }
@@ -160,6 +160,12 @@ model = cl.load_forecasting_module(
     optim_kwargs=optim_kwargs,
     sched="linear-warmup-cosine-annealing",
     sched_kwargs=sched_kwargs,
+    train_loss="mse",
+    val_loss=["rmse"],
+    test_loss=["rmse"],
+    train_target_transform=None,
+    val_target_transform=["denormalize"],
+    test_target_transform=["denormalize"],
 )
 
 # Setup trainer
@@ -183,19 +189,14 @@ trainer = pl.Trainer(
     callbacks=callbacks,
     default_root_dir=default_root_dir, 
     max_epochs=args.max_epochs,
+    accelerator="gpu" if args.gpu != -1 else None,
+    devices=[args.gpu] if args.gpu != -1 else None,
     strategy="ddp",
-    precision="16",
+    precision="32",
 )
-# trainer = pl.Trainer(
-#     logger=logger,
-#     callbacks=callbacks,
-#     default_root_dir=default_root_dir,
-#     accelerator=accelerator,  # <- use the variables
-#     devices=devices,          # <- use the variables
-#     max_epochs=args.max_epochs,
-#     strategy="ddp" if accelerator == "cuda" and devices != 1 else None,
-#     precision=16 if accelerator == "cuda" else 32,
-# )
+
+###––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––– Iterative
+### alternative to trainer.test(model, datamodule=dm) for iter
 
 
 # Define testing regime for iterative forecasting
@@ -220,6 +221,9 @@ def iterative_testing(model, trainer, args, from_checkpoint=False):
             trainer.test(model, datamodule=test_dm)
         else:
             trainer.test(model, datamodule=test_dm, ckpt_path="best")
+
+###–––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––– Continous
+### alternative to trainer.test(model, datamodule=dm) for cont
 
 
 # Define testing regime for continuous forecasting
