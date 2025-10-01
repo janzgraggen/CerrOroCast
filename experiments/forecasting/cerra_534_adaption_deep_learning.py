@@ -1,6 +1,8 @@
 
 # IMPORTS ––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 # Standard library
+TOP_LVL_DEBUG = True
+
 from argparse import ArgumentParser
 
 # Third party
@@ -10,6 +12,7 @@ from climate_learn.data.processing.era5_constants import (
     DEFAULT_PRESSURE_LEVELS,
 )
 import pytorch_lightning as pl
+import numpy as np
 from pytorch_lightning.callbacks import (
     EarlyStopping,
     ModelCheckpoint,
@@ -21,6 +24,8 @@ from pytorch_lightning.loggers.wandb import WandbLogger
 
 # END IMPORTS ––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 # PARSER ––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+if TOP_LVL_DEBUG: 
+    print("[line:51] Start parsing")
 parser = ArgumentParser()
 
 parser.add_argument("--summary_depth", type=int, default=1)
@@ -29,6 +34,8 @@ parser.add_argument("--patience", type=int, default=5)
 parser.add_argument("--gpu", type=int, default=0)
 parser.add_argument("--checkpoint", default=None)
 parser.add_argument("--bs", type=int, default=16)
+parser.add_argument("--logname", type=str, default=None)
+
 
 subparsers = parser.add_subparsers(
     help="Whether to perform direct, iterative, or continuous forecasting.",
@@ -52,6 +59,9 @@ continuous.add_argument("model", choices=["resnet", "unet", "vit"])
 
 args = parser.parse_args()
 
+if TOP_LVL_DEBUG: 
+    print("[line:82] parsing complete")
+    print("[line:85]: Start Variable assignment" )
 # END PARSER ––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 # VARIABLES ––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
@@ -79,7 +89,12 @@ for var in out_variables:
     else:
         out_vars.append(var)
 
+
+if TOP_LVL_DEBUG: 
+    print("[line:112] var assignment complete")
+    print("[line:115]: Start Data module loading" )
 # END VARIABLES ––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+# DATA MODULE ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 if args.forecast_type in ("direct", "iterative"):
     dm = cl.data.IterDataModule(
         f"{args.forecast_type}-forecasting",
@@ -93,8 +108,9 @@ if args.forecast_type in ("direct", "iterative"):
         pred_range=args.pred_range,
         subsample=6,
         batch_size=args.bs, ## reduce for memory (-> test) #32 or 128
-        num_workers=16,
+        num_workers=4, #16
     )
+
 elif args.forecast_type == "continuous":
     dm = cl.data.IterDataModule(
         "continuous-forecasting",
@@ -116,6 +132,13 @@ elif args.forecast_type == "continuous":
     )
 dm.setup()
 
+
+if TOP_LVL_DEBUG: 
+    print("[line:193] Data Loader module loading complete")
+    print("[line:198]: Start Model setup")
+# END DATA MODULE ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+# LEARNING MODEL ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+
 # Set up deep learning model
 in_channels = 1 
 if args.forecast_type == "continuous":
@@ -129,7 +152,7 @@ if args.model == "resnet":
         "in_channels": in_channels,
         "out_channels": out_channels,
         "history": 3,
-        "n_blocks": 5,
+        "n_blocks": 5, #28
     }
 elif args.model == "unet":
     model_kwargs = {  # override some of the defaults
@@ -178,8 +201,10 @@ model = cl.load_forecasting_module(
 # Setup trainer
 pl.seed_everything(0)
 default_root_dir = f"{args.model}_{args.forecast_type}_forecasting_{args.pred_range}"
-tb_logger = TensorBoardLogger(save_dir=f"{default_root_dir}/logs")
-wandb_logger = WandbLogger(project="cerra_534", name=default_root_dir)
+if args.logname == None:
+    args.logname = default_root_dir
+tb_logger = TensorBoardLogger(save_dir=f"{args.logname}/logs")
+wandb_logger = WandbLogger(project="cerra_534", name=args.logname)
 
 loggers = [tb_logger, wandb_logger]
 
@@ -205,7 +230,9 @@ trainer = pl.Trainer(
     strategy="ddp",
     precision="32",
 )
-
+if TOP_LVL_DEBUG:
+    print("[line:292]: Model and Trainer Setup complete" )
+    print("[line:292]: Start Training" )
 ###––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––– Iterative
 ### alternative to trainer.test(model, datamodule=dm) for iter
 
@@ -265,10 +292,15 @@ def continuous_testing(model, trainer, args, from_checkpoint=False):
 
 
 # Train and evaluate model from scratch –––––––––––––-––––-
+
 if args.checkpoint is None:
     trainer.fit(model, datamodule=dm)
     if args.forecast_type == "direct":
+        if TOP_LVL_DEBUG:
+            print("[line:358]: \{Training\} enter direct training mode and call: trainer.test() in if args.checkpoint is none [A]")
         trainer.test(model, datamodule=dm, ckpt_path="best")
+        if TOP_LVL_DEBUG:
+            print("[line:361]: \{Training\} enter direct training mode and call: trainer.test() [A]")
     elif args.forecast_type == "iterative":
         iterative_testing(model, trainer, args)
     elif args.forecast_type == "continuous":
@@ -287,7 +319,11 @@ else:
         test_target_tranfsorms=model.test_target_transforms,
     )
     if args.forecast_type == "direct":
+        if TOP_LVL_DEBUG:
+            print("[line:358]: \{Training\} enter direct training mode and call: trainer.test() in FROM checkpint [B]")
         trainer.test(model, datamodule=dm)
+        if TOP_LVL_DEBUG:
+            print("[line:361]: \{Training\} enter direct training mode and call: trainer.test() [B]")
     elif args.forecast_type == "iterative":
         iterative_testing(model, trainer, args, from_checkpoint=True)
     elif args.forecast_type == "continuous":
