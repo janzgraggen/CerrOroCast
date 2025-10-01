@@ -1,3 +1,5 @@
+
+# IMPORTS ––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 # Standard library
 from argparse import ArgumentParser
 
@@ -15,8 +17,10 @@ from pytorch_lightning.callbacks import (
     RichProgressBar,
 )
 from pytorch_lightning.loggers.tensorboard import TensorBoardLogger
+from pytorch_lightning.loggers.wandb import WandbLogger
 
-
+# END IMPORTS ––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+# PARSER ––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 parser = ArgumentParser()
 
 parser.add_argument("--summary_depth", type=int, default=1)
@@ -48,7 +52,8 @@ continuous.add_argument("model", choices=["resnet", "unet", "vit"])
 
 args = parser.parse_args()
 
-
+# END PARSER ––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+# VARIABLES ––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
 # Set up data
 variables = [
@@ -73,6 +78,8 @@ for var in out_variables:
             out_vars.append(var + "_" + str(level))
     else:
         out_vars.append(var)
+
+# END VARIABLES ––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 if args.forecast_type in ("direct", "iterative"):
     dm = cl.data.IterDataModule(
         f"{args.forecast_type}-forecasting",
@@ -122,7 +129,7 @@ if args.model == "resnet":
         "in_channels": in_channels,
         "out_channels": out_channels,
         "history": 3,
-        "n_blocks": 28,
+        "n_blocks": 5,
     }
 elif args.model == "unet":
     model_kwargs = {  # override some of the defaults
@@ -171,7 +178,11 @@ model = cl.load_forecasting_module(
 # Setup trainer
 pl.seed_everything(0)
 default_root_dir = f"{args.model}_{args.forecast_type}_forecasting_{args.pred_range}"
-logger = TensorBoardLogger(save_dir=f"{default_root_dir}/logs")
+tb_logger = TensorBoardLogger(save_dir=f"{default_root_dir}/logs")
+wandb_logger = WandbLogger(project="cerra_534", name=default_root_dir)
+
+loggers = [tb_logger, wandb_logger]
+
 early_stopping = "val/rmse:aggregate" ## available: `train/mse:aggregate`, `val/rmse:2m_temperature`, `val/rmse:aggregate`
 callbacks = [
     RichProgressBar(),
@@ -185,7 +196,7 @@ callbacks = [
     ),
 ]
 trainer = pl.Trainer(
-    logger=logger,
+    logger=loggers,
     callbacks=callbacks,
     default_root_dir=default_root_dir, 
     max_epochs=args.max_epochs,
@@ -253,7 +264,7 @@ def continuous_testing(model, trainer, args, from_checkpoint=False):
             trainer.test(model, datamodule=test_dm, ckpt_path="best")
 
 
-# Train and evaluate model from scratch
+# Train and evaluate model from scratch –––––––––––––-––––-
 if args.checkpoint is None:
     trainer.fit(model, datamodule=dm)
     if args.forecast_type == "direct":

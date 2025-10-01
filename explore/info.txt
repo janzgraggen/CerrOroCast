@@ -27,6 +27,11 @@ python experiments/forecasting/cerra_534_adaption_deep_learning.py direct ../dat
 
 ## tmux
 
-tmux attach -t 0 
+tmux attach -t 0  ## this attaches to session named t
+with CONTROL b d  ## detatch -> keeps running in the background
+
+
+current : test
+
 
 
