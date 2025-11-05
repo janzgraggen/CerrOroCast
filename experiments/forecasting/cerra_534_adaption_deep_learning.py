@@ -25,7 +25,7 @@ from pytorch_lightning.loggers.wandb import WandbLogger
 # END IMPORTS ––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 # PARSER ––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 if TOP_LVL_DEBUG: 
-    print("[line:51] Start parsing")
+    print("[line:28] Start parsing")
 parser = ArgumentParser()
 
 parser.add_argument("--summary_depth", type=int, default=1)
@@ -47,21 +47,21 @@ iterative = subparsers.add_parser("iterative")
 continuous = subparsers.add_parser("continuous")
 
 direct.add_argument("cerra534_dir")
-direct.add_argument("model", choices=["resnet", "unet", "vit"])
+direct.add_argument("model", choices=["resnet", "unet", "vit","vit","vitcc", "geofar","geofar_v2"])
 direct.add_argument("pred_range", type=int, choices=[6, 24, 72, 120, 240])
 
 iterative.add_argument("cerra534_dir")
-iterative.add_argument("model", choices=["resnet", "unet", "vit"])
+iterative.add_argument("model", choices=["resnet", "uneta", "vit","vitcc", "geofar","geofar_v2"])
 iterative.add_argument("pred_range", type=int, choices=[6, 24, 72, 120, 240])
 
 continuous.add_argument("cerra534_dir")
-continuous.add_argument("model", choices=["resnet", "unet", "vit"])
+continuous.add_argument("model", choices=["resnet", "unet", "vit","vitcc", "geofar","geofar_v2"])
 
 args = parser.parse_args()
 
 if TOP_LVL_DEBUG: 
-    print("[line:82] parsing complete")
-    print("[line:85]: Start Variable assignment" )
+    print("[line:63] parsing complete")
+    print("[line:64]: Start Variable assignment" )
 # END PARSER ––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 # VARIABLES ––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
@@ -91,8 +91,8 @@ for var in out_variables:
 
 
 if TOP_LVL_DEBUG: 
-    print("[line:112] var assignment complete")
-    print("[line:115]: Start Data module loading" )
+    print("[line:94] var assignment complete")
+    print("[line:95]: Start Data module loading" )
 # END VARIABLES ––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 # DATA MODULE ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 if args.forecast_type in ("direct", "iterative"):
@@ -134,11 +134,10 @@ dm.setup()
 
 
 if TOP_LVL_DEBUG: 
-    print("[line:193] Data Loader module loading complete")
-    print("[line:198]: Start Model setup")
+    print("[line:137] Data Loader module loading complete")
+    print("[line:138]: Start Model setup")
 # END DATA MODULE ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 # LEARNING MODEL ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
-
 # Set up deep learning model
 in_channels = 1 
 if args.forecast_type == "continuous":
@@ -167,7 +166,7 @@ elif args.model == "vit":
         "img_size": (534, 534),
         "in_channels": in_channels,
         "out_channels": out_channels,
-        "history": 3,
+        "history": 3, 
         "patch_size": 6, #2
         "embed_dim": 64, #128
         "depth": 4, # 8
@@ -175,6 +174,65 @@ elif args.model == "vit":
         "learn_pos_emb": True,
         "num_heads": 4,
     }
+
+elif args.model == "vitcc":
+    model_kwargs = {  # override some of the defaults
+        "img_size": (534, 534),
+        "in_channels": in_channels,
+        "out_channels": out_channels,
+        "history": 3,
+        "patch_size": 6, #2
+        "embed_dim": 64, #128
+        "depth": 4, # 8
+        "decoder_depth": 2, #2
+        "learn_pos_emb": True,
+        "num_heads": 4,
+        ### Aditional Params for VisionTransformerCC
+        "oro_path": f"{args.cerra534_dir}/orography.npz" ## <- !!!!!
+    }
+
+
+elif args.model == "geofar":
+    model_kwargs = {  # override some of the defaults
+        "img_size": (534, 534),
+        "in_channels": in_channels,
+        "out_channels": out_channels,
+        "history": 3,
+        "patch_size": 6, #2
+        "embed_dim": 64, #128
+        "depth": 4, # 8
+        "decoder_depth": 2, #2
+        "learn_pos_emb": True,
+        "num_heads": 4,
+        ### Aditional Params for GeoFAR
+        "oro_path": f"{args.cerra534_dir}/orography.npz", ## <- !!!!!
+        "n_coeff": 16, ## <- !!!!! 64
+        "n_sh_coeff": 16, ## <- !!!!! 64
+        "conv_start_size": 16, ## <- !!!!!
+        "siren_hidden": 32, ## <- !!!!! 
+    }
+
+elif args.model == "geofar_v2":
+    model_kwargs = {  # override some of the defaults
+        "img_size": (534, 534),
+        "in_channels": in_channels,
+        "out_channels": out_channels,
+        "history": 3,
+        "patch_size": 6, #2
+        "embed_dim": 64, #128
+        "depth": 4, # 8
+        "decoder_depth": 2, #2
+        "learn_pos_emb": True,
+        "num_heads": 4,
+        ### Aditional Params for GeoFAR
+        "oro_path": f"{args.cerra534_dir}/orography.npz", ## <- !!!!!
+        "n_coeff": 64, ## <- !!!!! 64
+        "n_sh_coeff": 64, ## <- !!!!! 64
+        "conv_start_size": 64, ## <- !!!!!
+        "siren_hidden": 128, ## <- !!!!! 
+    }
+
+
 optim_kwargs = {"lr": 5e-4, "weight_decay": 1e-5, "betas": (0.9, 0.99)}
 sched_kwargs = {
     "warmup_epochs": 5,
@@ -203,10 +261,10 @@ pl.seed_everything(0)
 default_root_dir = f"{args.model}_{args.forecast_type}_forecasting_{args.pred_range}"
 if args.logname == None:
     args.logname = default_root_dir
-tb_logger = TensorBoardLogger(save_dir=f"{args.logname}/logs")
-wandb_logger = WandbLogger(project="cerra_534", name=args.logname)
+#tb_logger = TensorBoardLogger(save_dir=f"{args.logname}/logs")
+wandb_logger = WandbLogger(project="cerra_534", name=args.logname, save_dir=f"logs/{args.logname}")
 
-loggers = [tb_logger, wandb_logger]
+loggers = [wandb_logger] #, tb_logger,
 
 early_stopping = "val/rmse:aggregate" ## available: `train/mse:aggregate`, `val/rmse:2m_temperature`, `val/rmse:aggregate`
 callbacks = [
@@ -214,7 +272,7 @@ callbacks = [
     RichModelSummary(max_depth=args.summary_depth),
     EarlyStopping(monitor=early_stopping, patience=args.patience),
     ModelCheckpoint(
-        dirpath=f"{default_root_dir}/checkpoints",
+        dirpath=f"checkpoints/{default_root_dir}",
         monitor=early_stopping,
         filename="epoch_{epoch:03d}",
         auto_insert_metric_name=False,
@@ -232,7 +290,7 @@ trainer = pl.Trainer(
 )
 if TOP_LVL_DEBUG:
     print("[line:292]: Model and Trainer Setup complete" )
-    print("[line:292]: Start Training" )
+    print("[line:293]: Start Training" )
 ###––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––– Iterative
 ### alternative to trainer.test(model, datamodule=dm) for iter
 
@@ -291,22 +349,25 @@ def continuous_testing(model, trainer, args, from_checkpoint=False):
             trainer.test(model, datamodule=test_dm, ckpt_path="best")
 
 
-# Train and evaluate model from scratch –––––––––––––-––––-
+# Train and evaluate model from scratch –––––––––––––-––––-–––––––––
 
 if args.checkpoint is None:
-    trainer.fit(model, datamodule=dm)
+    ### TRAINING MODEL FROM SCRATCH
+    trainer.fit(model, datamodule=dm) 
+
+    ### EVALUATING MODEL
     if args.forecast_type == "direct":
         if TOP_LVL_DEBUG:
-            print("[line:358]: \{Training\} enter direct training mode and call: trainer.test() in if args.checkpoint is none [A]")
+            print("[line:361]: \{Training\} enter direct training mode and call: trainer.test() in if args.checkpoint is none [A]")
         trainer.test(model, datamodule=dm, ckpt_path="best")
         if TOP_LVL_DEBUG:
-            print("[line:361]: \{Training\} enter direct training mode and call: trainer.test() [A]")
+            print("[line:364]: \{Training\} enter direct training mode and call: trainer.test() [A]")
     elif args.forecast_type == "iterative":
         iterative_testing(model, trainer, args)
     elif args.forecast_type == "continuous":
         continuous_testing(model, trainer, args)
 
-# Evaluate saved model checkpoint
+# Evaluate saved model checkpoint ––––-––––––––––––––––––––––––––––––
 else:
     model = cl.LitModule.load_from_checkpoint(
         args.checkpoint,
@@ -320,10 +381,10 @@ else:
     )
     if args.forecast_type == "direct":
         if TOP_LVL_DEBUG:
-            print("[line:358]: \{Training\} enter direct training mode and call: trainer.test() in FROM checkpint [B]")
+            print("[line:384]: \{Training\} enter direct training mode and call: trainer.test() in FROM checkpint [B]")
         trainer.test(model, datamodule=dm)
         if TOP_LVL_DEBUG:
-            print("[line:361]: \{Training\} enter direct training mode and call: trainer.test() [B]")
+            print("[line:387]: \{Training\} enter direct training mode and call: trainer.test() [B]")
     elif args.forecast_type == "iterative":
         iterative_testing(model, trainer, args, from_checkpoint=True)
     elif args.forecast_type == "continuous":
