@@ -4,6 +4,8 @@ from argparse import ArgumentParser
 
 # Third party
 import climate_learn as cl
+import datetime
+import os
 from climate_learn.data.processing.era5_constants import (
     PRESSURE_LEVEL_VARS,
     DEFAULT_PRESSURE_LEVELS,
@@ -18,7 +20,11 @@ from pytorch_lightning.callbacks import (
 )
 from pytorch_lightning.loggers.tensorboard import TensorBoardLogger
 from pytorch_lightning.loggers.wandb import WandbLogger
-
+import json
+import os
+import argparse
+import numpy as _np
+PRINTS = True
 # PARSER ––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
 parser = ArgumentParser()
@@ -28,16 +34,29 @@ parser.add_argument("--summary_depth", type=int, default=1)
 parser.add_argument("--max_epochs", type=int, default=20)
 parser.add_argument("--patience", type=int, default=5)
 parser.add_argument("--gpu", type=int, default=0)
-parser.add_argument("--checkpoint", default=None)
 parser.add_argument("--bs", type=int, default=16)
 parser.add_argument("--logname", type=str, default=None)
 
-## POSITIONAL ARGUMENTS
-parser.add_argument("cerra534_dir")
-parser.add_argument("model", choices=["resnet", "unet", "vit","vit","vitcc", "geofar","geofar_v2"])
-parser.add_argument("pred_range", type=int, choices=[6, 24, 72, 120, 240])
+## MANDATORY OPTIONAL ARGS
+parser.add_argument("--cerra534_dir",type=str,default="dataset/CERRA-534/")
+parser.add_argument("--pred_range", type=int, choices=[6, 24, 72, 120, 240],default=6)
 
+## POSITIONAL ARGUMENTS
+parser.add_argument("model", choices=["vit","vit","vitcc", "geofar","geofar_v2", "geonofar"])
+
+parser.add_argument("--vis",type=str, default=None,help="If given, visualize the model from the given checkpoint name (without .ckpt) instead of training.")
 args = parser.parse_args()
+LOG_DIR = f"outputs/{args.model}/{args.logname}" #no Slash logs as it creates a wandb folder anyways
+CKPT_DIR = f"outputs/{args.model}/{args.logname}/checkpoints"
+PRINT_DIR = f"outputs/{args.model}/{args.logname}/vis"
+INFO_DIR = f"outputs/{args.model}/{args.logname}/info"
+
+if args.vis: ## check that chekpoint exists
+    ckpt_path = os.path.join(CKPT_DIR, f"{args.vis}.ckpt")
+    if not os.path.exists(ckpt_path):
+        raise ValueError(f"Checkpoint path for visualization does not exist: {ckpt_path}")
+    args.checkpoint = ckpt_path
+
 # END PARSER ––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
 
@@ -63,29 +82,14 @@ dm = cl.data.IterDataModule(
     num_workers=4, #16
 )
 dm.setup()
-
+if PRINTS:print("DataModule ready.")
 # END DATA MODULE ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 # LEARNING MODEL ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 # Set up deep learning model
 in_channels = 1 
 out_channels = 1
 
-if args.model == "resnet":
-    model_kwargs = {  # override some of the defaults
-        "in_channels": in_channels,
-        "out_channels": out_channels,
-        "history": 3,
-        "n_blocks": 5, #28
-    }
-elif args.model == "unet":
-    model_kwargs = {  # override some of the defaults
-        "in_channels": in_channels,
-        "out_channels": out_channels,
-        "history": 3,
-        "ch_mults": (1, 2, 2),
-        "is_attn": (False, False, False),
-    }
-elif args.model == "vit":
+if args.model == "vit":
     model_kwargs = {  # override some of the defaults
         "img_size": (534, 534),
         "in_channels": in_channels,
@@ -157,6 +161,26 @@ elif args.model == "geofar_v2":
     }
 
 
+elif args.model == "geonofar":
+    model_kwargs = {  # override some of the defaults
+        "img_size": (534, 534),
+        "in_channels": in_channels,
+        "out_channels": out_channels,
+        "history": 3,
+        "patch_size": 6, #2
+        "embed_dim": 64, #128
+        "depth": 4, # 8
+        "decoder_depth": 2, #2
+        "learn_pos_emb": True,
+        "num_heads": 4,
+        ### Aditional Params for GeoFAR
+        "oro_path": f"{args.cerra534_dir}/orography.npz", ## <- !!!!!
+        "n_coeff": 64, ## <- !!!!! 64
+        "n_sh_coeff": 64, ## <- !!!!! 64
+        "conv_start_size": 64, ## <- !!!!!
+        "siren_hidden": 128, ## <- !!!!! 
+    }
+
 optim_kwargs = {"lr": 5e-4, "weight_decay": 1e-5, "betas": (0.9, 0.99)}
 sched_kwargs = {
     "warmup_epochs": 5,
@@ -179,22 +203,58 @@ model = cl.load_forecasting_module(
     val_target_transform=["denormalize"],
     test_target_transform=["denormalize"],
 )
+if PRINTS: print("Model ready.")
 
-# Setup trainer
+# END LEARNING MODEL ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+# SAVE CONFIG IN CASE ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+
+def _make_serializable(obj):
+    if isinstance(obj, argparse.Namespace):
+        return _make_serializable(vars(obj))
+    if isinstance(obj, dict):
+        return {k: _make_serializable(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_make_serializable(v) for v in obj]
+    try:
+        if isinstance(obj, _np.ndarray):
+            return obj.tolist()
+    except Exception:
+        pass
+    return obj
+
+os.makedirs(INFO_DIR, exist_ok=True)
+config = {
+    "args": _make_serializable(args),
+    "model_kwargs": _make_serializable(model_kwargs),
+    "optim_kwargs": _make_serializable(optim_kwargs),
+    "sched_kwargs": _make_serializable(sched_kwargs),
+}
+with open(os.path.join(INFO_DIR, "config.json"), "w") as fh:
+    json.dump(config, fh, indent=2)
+
+# END SAVE CONFIG IN CASE –––––––––––––––––––––––––––––––––––––––––––––
+# START DEFINE OUTPUTS and Trainer ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+
 pl.seed_everything(0)
-default_root_dir = f"{args.model}_{args.forecast_type}_forecasting_{args.pred_range}"
-if args.logname == None:
-    args.logname = default_root_dir
-wandb_logger = WandbLogger(project="cerra_534", name=args.logname, save_dir=f"logs/{args.logname}")
-loggers = [wandb_logger] #, tb_logger,
-early_stopping = "val/rmse:aggregate" ## available: `train/mse:aggregate`, `val/rmse:2m_temperature`, `val/rmse:aggregate`
+if args.logname is None:
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    args.logname = f"run_{timestamp}"
+
+wandb_logger = WandbLogger(
+    project="cerra_534",
+    name=args.logname,
+    save_dir=LOG_DIR
+)
+loggers = [wandb_logger]
+
+early_stopping_metric = "val/rmse:aggregate"
 callbacks = [
     RichProgressBar(),
     RichModelSummary(max_depth=args.summary_depth),
-    EarlyStopping(monitor=early_stopping, patience=args.patience),
+    EarlyStopping(monitor=early_stopping_metric, patience=args.patience),
     ModelCheckpoint(
-        dirpath=f"checkpoints/{default_root_dir}",
-        monitor=early_stopping,
+        dirpath=CKPT_DIR,
+        monitor=early_stopping_metric,
         filename="epoch_{epoch:03d}",
         auto_insert_metric_name=False,
     ),
@@ -202,26 +262,30 @@ callbacks = [
 trainer = pl.Trainer(
     logger=loggers,
     callbacks=callbacks,
-    default_root_dir=default_root_dir, 
+    default_root_dir="outputs/fallback", 
     max_epochs=args.max_epochs,
     accelerator="gpu" if args.gpu != -1 else None,
     devices=[args.gpu] if args.gpu != -1 else None,
     strategy="ddp",
     precision="32",
 )
-
+if PRINTS: print("Trainer ready.")
+# START DEFINE OUTPUTS and Trainer ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 # Train and evaluate model from scratch –––––––––––––-––––-–––––––––
 
-if args.checkpoint is None:
+if args.vis is None:
     ### TRAINING MODEL FROM SCRATCH
+    if PRINTS: print("Start training.")
     trainer.fit(model, datamodule=dm) 
 
     ### EVALUATING MODEL
+    if PRINTS: print("Training Done. Start evaluation.")
     trainer.test(model, datamodule=dm, ckpt_path="best")
     
 
-# Evaluate saved model checkpoint ––––-––––––––––––––––––––––––––––––
+# Evaluate saved model checkpoint and visualize ––––-––––––––––––––––––––––––––––––
 else:
+    if PRINTS: print("Load Model from checkpoint.")
     model = cl.LitModule.load_from_checkpoint(
         args.checkpoint,
         net=model.net,
@@ -230,8 +294,23 @@ else:
         train_loss=None,
         val_loss=None,
         test_loss=model.test_loss,
-        test_target_tranfsorms=model.test_target_transforms,
+        test_target_transforms=model.test_target_transforms,
     )
-    if args.forecast_type == "direct":
-        trainer.test(model, datamodule=dm)
+
+    #trainer.test(model, datamodule=dm)
+
+    denorm = model.test_target_transforms[0]
+    if PRINTS: print("Visualize...")
+    cl.utils.visualize_sphere_at_index_save(
+        model,
+        dm,
+        in_transform=denorm,
+        out_transform=denorm,
+        out_path = PRINT_DIR,
+        variable="2m_temperature", #
+        src="cerra",
+        index=0, # the index of the frame in the dataset you want to visualize
+        is_global=False,
+        ) 
+
     
