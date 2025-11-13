@@ -36,7 +36,7 @@ parser.add_argument("--cerra534_dir",type=str,default="dataset/CERRA-534/")
 parser.add_argument("--pred_range", type=int, choices=[6, 24, 72, 120, 240],default=6)
 
 ## POSITIONAL ARGUMENTS
-parser.add_argument("model", choices=["vit","vit","vitcc", "geofar","geofar_v2", "geonofar"])
+parser.add_argument("model", choices=["vit","vit","vitcc", "geofar","geofar_v2", "vitginr"])
 
 parser.add_argument("--vis",type=str, default=None,help="If given, visualize the model from the given checkpoint name (without .ckpt) instead of training.")
 args = parser.parse_args()
@@ -148,14 +148,14 @@ elif args.model == "geofar_v2":
         "num_heads": 4,
         ### Aditional Params for GeoFAR
         "oro_path": f"{args.cerra534_dir}/orography.npz", ## <- !!!!!
-        "n_coeff": 16, ## <- !!!!! 64
-        "n_sh_coeff": 16, ## <- !!!!! 64
-        "conv_start_size": 16, ## <- !!!!! 64
-        "siren_hidden": 32, ## <- !!!!!  128
+        "n_coeff": 32, ## <- !!!!! 64 has to be square of int
+        "n_sh_coeff": 32, ## <- !!!!! 64
+        "conv_start_size": 32, ## <- !!!!! 64
+        "siren_hidden": 64, ## <- !!!!!  128
     }
 
 
-elif args.model == "geonofar":
+elif args.model == "vitginr":
     model_kwargs = {  # override some of the defaults
         "img_size": (534, 534),
         "in_channels": in_channels,
@@ -169,10 +169,10 @@ elif args.model == "geonofar":
         "num_heads": 4,
         ### Aditional Params for GeoFAR
         "oro_path": f"{args.cerra534_dir}/orography.npz", ## <- !!!!!
-        "n_coeff": 16, ## <- !!!!! 64
-        "n_sh_coeff": 16, ## <- !!!!! 64
-        "conv_start_size": 16, ## <- !!!!!
-        "siren_hidden": 32, ## <- !!!!! 
+        "n_coeff": 36, ## <- !!!!! 64 square of int
+        "n_sh_coeff": 36, ## <- !!!!! 64
+        "conv_start_size": 32, ## <- !!!!! 64
+        "siren_hidden": 64, ## <- !!!!!  128
     }
 
 optim_kwargs = {"lr": 5e-4, "weight_decay": 1e-5, "betas": (0.9, 0.99)}

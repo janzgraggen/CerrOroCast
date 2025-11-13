@@ -14,8 +14,8 @@ for running (with hyperparam args)
 
 for running minimaly
 
- `python CerrOroCast/experiments/cerra534_minimal.py   geofar_v2   --logname=geofar_v2`
+ `python CerrOroCast/experiments/cerra534_minimal.py   vitginr   --logname=vitginr`
 
 #### --> New Visualizing
 for running visualization
- `python CerrOroCast/experiments/forecasting/cerra534_minimal.py  geofar_v2   --logname=geofar_v2 --vis=epoch_XXX`
+ `python CerrOroCast/experiments/forecasting/cerra534_minimal.py  vitginr   --logname=vitginr --vis=epoch_XXX`
