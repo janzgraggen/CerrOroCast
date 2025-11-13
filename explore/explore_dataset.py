@@ -5,7 +5,7 @@ import numpy as np
 
 
 ## Set the root path to the dataset
-ROOT = Path("../dataset/CERRA-534/")
+ROOT = Path("dataset/CERRA-534/")
 
 for split in ("train", "val", "test"):
     files = sorted((ROOT / split).glob("*.npz"))
@@ -32,3 +32,17 @@ for k in z.files:
     a = z[k]
     print(k, "shape:", a.shape, "dtype:", a.dtype,
           "min/max:", float(a.min()), float(a.max()))
+
+# Check the shape of arrays in all files (use train/val/test as needed)
+# split = "train"  # or "val", "test"
+# shapes = {}
+
+# for f in sorted((ROOT / split).glob("*.npz")):
+#     z = np.load(f, allow_pickle=True)
+#     for k in z.files:
+#         a = z[k]
+#         shapes.setdefault(k, set()).add(a.shape)
+#     z.close()
+
+# for k, s in shapes.items():
+#     print(f"{k}: found {len(s)} unique shapes → {s}")

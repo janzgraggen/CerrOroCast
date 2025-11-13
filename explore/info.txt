@@ -22,6 +22,13 @@ python cerra_534_adaption_deep_learning.py direct ../../../dataset/CERRA-534/ vi
 python heatwaves/experiments/forecasting/cerra_534_adaption_deep_learning.py direct dataset/CERRA-534/ vit 6
 python heatwaves/experiments/forecasting/cerra_534_adaption_deep_learning.py --bs=16 direct dataset/CERRA-534/ vit 6
 
+--> NEW Minimal
+ python heatwaves/experiments/forecasting/cerra534_minimal.py --bs=16 --logname=geofar_v2 dataset/CERRA-534/ geofar_v2  6
+ python heatwaves/experiments/forecasting/cerra534_minimal.py   geofar_v2   --logname=geofar_v2
+
+ --> New Visualizing
+ python heatwaves/experiments/forecasting/cerra534_minimal.py  geofar_v2   --logname=geofar_v2 --vis=epoch_XXX
+
 ## from heatwaves
 python experiments/forecasting/cerra_534_adaption_deep_learning.py direct ../dataset/CERRA-534/ vit 6
 
