@@ -19,7 +19,7 @@ import os
 import argparse
 import numpy as _np
 PRINTS = True
-MODEL_REG = ["vit","vitcc", "geofar","geofar_v2", "vitginr"]
+MODEL_REG = ["vit","vitcc", "vitcc2vit","geofar","geofar_v2", "vitginr"]
 MODEL_REG_ORO = MODEL_REG[1: ] # remove "vit" without orography
 MODEL_REG_GEO = ["geofar","geofar_v2","vitginr"]
 
@@ -120,12 +120,12 @@ if args.model in MODEL_REG_ORO:
     model_kwargs["oro_path"] = f"{args.cerra534_dir}/orography.npz"
 
 
-elif args.model in MODEL_REG_GEO:
+if args.model in MODEL_REG_GEO:
         ### Aditional Params for Geo Encoding
-        model_kwargs["n_coeff"] = 36, # square of int
-        model_kwargs["n_sh_coeff"] = 36, # square of int
-        model_kwargs["conv_start_size"] = 32, # v2: 24 !!
-        model_kwargs["siren_hidden"] = 64, # v2: 48 !!
+        model_kwargs["n_coeff"] = 36 # square of int
+        model_kwargs["n_sh_coeff"] = 36 # square of int
+        model_kwargs["conv_start_size"] = 32 # v2: 24 !!
+        model_kwargs["siren_hidden"] = 64 # v2: 48 !!
 
 
 optim_kwargs = {"lr": 5e-4, "weight_decay": 1e-5, "betas": (0.9, 0.99)}
