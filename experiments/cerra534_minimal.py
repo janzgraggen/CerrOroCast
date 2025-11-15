@@ -19,7 +19,7 @@ import os
 import argparse
 import numpy as _np
 PRINTS = True
-MODEL_REG = ["vit","vitcc", "vitcc2vit","geofar","geofar_v2", "vitginr"]
+MODEL_REG = ["vit","vitcc", "vitcc2vit","vitfuse","geofar","geofar_v2", "vitginr"]
 MODEL_REG_ORO = MODEL_REG[1: ] # remove "vit" without orography
 MODEL_REG_GEO = ["geofar","geofar_v2","vitginr"]
 
