@@ -19,6 +19,10 @@ import os
 import argparse
 import numpy as _np
 PRINTS = True
+MODEL_REG = ["vit","vitcc", "geofar","geofar_v2", "vitginr"]
+MODEL_REG_ORO = MODEL_REG[1: ] # remove "vit" without orography
+MODEL_REG_GEO = ["geofar","geofar_v2","vitginr"]
+
 # PARSER ––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
 parser = argparse.ArgumentParser()
@@ -36,10 +40,27 @@ parser.add_argument("--cerra534_dir",type=str,default="dataset/CERRA-534/")
 parser.add_argument("--pred_range", type=int, choices=[6, 24, 72, 120, 240],default=6)
 
 ## POSITIONAL ARGUMENTS
-parser.add_argument("model", choices=["vit","vit","vitcc", "geofar","geofar_v2", "vitginr"])
+parser.add_argument("model", choices=MODEL_REG)
 
 parser.add_argument("--vis",type=str, default=None,help="If given, visualize the model from the given checkpoint name (without .ckpt) instead of training.")
 args = parser.parse_args()
+
+
+if args.logname is None:
+    args.logname = args.model
+
+# Ensure we don't overwrite an existing outputs/<model>/<logname> directory.
+base_parent = f"outputs/{args.model}"
+base_path = os.path.join(base_parent, args.logname)
+if os.path.exists(base_path):
+    for i in range(1, 21):  # try appending 1..20
+        candidate = f"{args.logname}_{i}"
+        candidate_path = os.path.join(base_parent, candidate)
+        if not os.path.exists(candidate_path):
+            args.logname = candidate
+            break
+    else:
+        raise ValueError(f"Could not find a non-existing logname for {base_path} after 20 attempts.")
 LOG_DIR = f"outputs/{args.model}/{args.logname}" #no Slash logs as it creates a wandb folder anyways
 CKPT_DIR = f"outputs/{args.model}/{args.logname}/checkpoints"
 PRINT_DIR = f"outputs/{args.model}/{args.logname}/vis"
@@ -80,100 +101,32 @@ if PRINTS:print("DataModule ready.")
 # END DATA MODULE ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 # LEARNING MODEL ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 # Set up deep learning model
-in_channels = 1 
-out_channels = 1
 
-if args.model == "vit":
-    model_kwargs = {  # override some of the defaults
-        "img_size": (534, 534),
-        "in_channels": in_channels,
-        "out_channels": out_channels,
-        "history": 3, 
-        "patch_size": 6, #2
-        "embed_dim": 64, #128
-        "depth": 4, # 8
-        "decoder_depth": 2, #2
-        "learn_pos_emb": True,
-        "num_heads": 4,
-    }
+model_kwargs = {  # override some of the defaults
+    "img_size": (534, 534),
+    "in_channels": 1,
+    "out_channels": 1,
+    "history": 3, 
+    "patch_size": 6, #2
+    "embed_dim": 64, #128
+    "depth": 4, # 8
+    "decoder_depth": 2, #2
+    "learn_pos_emb": True,
+    "num_heads": 4,
+}
 
-elif args.model == "vitcc":
-    model_kwargs = {  # override some of the defaults
-        "img_size": (534, 534),
-        "in_channels": in_channels,
-        "out_channels": out_channels,
-        "history": 3,
-        "patch_size": 6, #2
-        "embed_dim": 64, #128
-        "depth": 4, # 8
-        "decoder_depth": 2, #2
-        "learn_pos_emb": True,
-        "num_heads": 4,
-        ### Aditional Params for VisionTransformerCC
-        "oro_path": f"{args.cerra534_dir}/orography.npz" ## <- !!!!!
-    }
+if args.model in MODEL_REG_ORO:
+    ### Aditional Params for VisionTransformerCC
+    model_kwargs["oro_path"] = f"{args.cerra534_dir}/orography.npz"
 
 
-elif args.model == "geofar":
-    model_kwargs = {  # override some of the defaults
-        "img_size": (534, 534),
-        "in_channels": in_channels,
-        "out_channels": out_channels,
-        "history": 3,
-        "patch_size": 6, #2
-        "embed_dim": 64, #128
-        "depth": 4, # 8
-        "decoder_depth": 2, #2
-        "learn_pos_emb": True,
-        "num_heads": 4,
-        ### Aditional Params for GeoFAR
-        "oro_path": f"{args.cerra534_dir}/orography.npz", ## <- !!!!!
-        "n_coeff": 16, ## <- !!!!! 64
-        "n_sh_coeff": 16, ## <- !!!!! 64
-        "conv_start_size": 16, ## <- !!!!!
-        "siren_hidden": 32, ## <- !!!!! 
-    }
+elif args.model in MODEL_REG_GEO:
+        ### Aditional Params for Geo Encoding
+        model_kwargs["n_coeff"] = 36, # square of int
+        model_kwargs["n_sh_coeff"] = 36, # square of int
+        model_kwargs["conv_start_size"] = 32, # v2: 24 !!
+        model_kwargs["siren_hidden"] = 64, # v2: 48 !!
 
-elif args.model == "geofar_v2":
-    model_kwargs = {  # override some of the defaults
-        "img_size": (534, 534),
-        "in_channels": in_channels,
-        "out_channels": out_channels,
-        "history": 3,
-        "patch_size": 6, #2
-        "embed_dim": 64, #128
-        "depth": 4, # 8
-        "decoder_depth": 2, #2
-        "learn_pos_emb": True,
-        "num_heads": 4,
-        ### Aditional Params for GeoFAR
-        "oro_path": f"{args.cerra534_dir}/orography.npz", ## <- !!!!!
-        "n_coeff": 32, ## <- !!!!! 64 has to be square of int
-        "n_sh_coeff": 32, ## <- !!!!! 64
-        "conv_start_size": 32, ## <- !!!!! 64
-        "siren_hidden": 64, ## <- !!!!!  128
-    }
-
-
-elif args.model == "vitginr":
-    model_kwargs = {  # override some of the defaults
-        "img_size": (534, 534),
-        "in_channels": in_channels,
-        "out_channels": out_channels,
-        "history": 3,
-        "patch_size": 6, #2
-        "embed_dim": 64, #128
-        "depth": 4, # 8
-        "decoder_depth": 2, #2
-        "learn_pos_emb": True,
-        "num_heads": 4,
-        ### Aditional Params for GeoFAR
-        "oro_path": f"{args.cerra534_dir}/orography.npz", ## <- !!!!!
-        "n_coeff": 36, ## <- !!!!! 64 square of int
-        "n_sh_coeff": 36, ## <- !!!!! 64
-        "conv_start_size": 32, ## <- !!!!! 64
-        "siren_hidden": 64, ## <- !!!!!  128
-    }
 
 optim_kwargs = {"lr": 5e-4, "weight_decay": 1e-5, "betas": (0.9, 0.99)}
 sched_kwargs = {
@@ -223,6 +176,20 @@ config = {
     "optim_kwargs": _make_serializable(optim_kwargs),
     "sched_kwargs": _make_serializable(sched_kwargs),
 }
+script_path = os.path.abspath(__file__)
+train_cmd = (
+    f"python {script_path} {args.model}"
+    f" --cerra534_dir {args.cerra534_dir}"
+    f" --pred_range {args.pred_range}"
+    f" --bs {args.bs}"
+    f" --max_epochs {args.max_epochs}"
+    f" --patience {args.patience}"
+    f" --gpu {args.gpu}"
+    f" --summary_depth {args.summary_depth}"
+    f" --logname {args.logname}"
+)
+vis_cmd = train_cmd + " --vis epoch_019"
+config["run_commands"] = {"train": train_cmd, "visualize": vis_cmd}
 with open(os.path.join(INFO_DIR, "config.json"), "w") as fh:
     json.dump(config, fh, indent=2)
 
@@ -230,9 +197,6 @@ with open(os.path.join(INFO_DIR, "config.json"), "w") as fh:
 # START DEFINE OUTPUTS and Trainer ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
 pl.seed_everything(0)
-if args.logname is None:
-    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    args.logname = f"run_{timestamp}"
 
 wandb_logger = WandbLogger(
     project="cerra_534",
