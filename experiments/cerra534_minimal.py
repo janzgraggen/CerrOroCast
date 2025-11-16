@@ -1,11 +1,5 @@
-
-# IMPORTS ––––––––––––––––––––––––––––––––––––––––––––––––––––––––
-
-# Third party
 import climate_learn as cl
-import datetime
 import pytorch_lightning as pl
-import numpy as np
 from pytorch_lightning.callbacks import (
     EarlyStopping,
     ModelCheckpoint,
@@ -17,7 +11,7 @@ from pytorch_lightning.loggers.wandb import WandbLogger
 import json
 import os
 import argparse
-import numpy as _np
+import numpy as np
 PRINTS = True
 MODEL_REG = ["vit","vitcc", "vitcc2vit","vitfuse","geofar","geofar_v2", "vitginr"]
 MODEL_REG_ORO = MODEL_REG[1: ] # remove "vit" without orography
@@ -163,7 +157,7 @@ def _make_serializable(obj):
     if isinstance(obj, (list, tuple)):
         return [_make_serializable(v) for v in obj]
     try:
-        if isinstance(obj, _np.ndarray):
+        if isinstance(obj, np.ndarray):
             return obj.tolist()
     except Exception:
         pass
