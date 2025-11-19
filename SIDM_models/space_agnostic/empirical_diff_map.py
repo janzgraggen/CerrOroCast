@@ -3,6 +3,7 @@ from tqdm import tqdm
 import climate_learn as cl
 import numpy as np
 
+
 # -------------------------
 # 1. Load orography
 # -------------------------
@@ -35,7 +36,7 @@ dm = cl.data.IterDataModule(
 dm.setup()
 train_loader = dm.train_dataloader()
 
-# 3. Prepare bins and accumulators
+# 3. Prepare bins and accumulators ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 num_bins = 300
 dH_split = torch.linspace(0, max_dH, num_bins + 1)
 dH_split_centers = 0.5 * (dH_split[:-1] + dH_split[1:]) 
