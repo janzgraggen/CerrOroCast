@@ -5,18 +5,19 @@ import climate_learn as cl
 import numpy as np
 import os
 
+from climate_learn.models.hub.sidm import dH_to_dT_conv
+from climate_learn.metrics.metrics import DISA_abs_horizontal_vertical_differences
+# class dH_to_dT_conv(nn.Module):
+#     def __init__(self, in_channels=2, out_channels=2):
+#         super().__init__()
+#         self.net = nn.Sequential(
+#             nn.Conv2d(in_channels, 16, kernel_size=3, padding=1),  # local receptive field
+#             nn.ReLU(),
+#             nn.Conv2d(16, out_channels, kernel_size=3, padding=1)  # outputs 2 channels
+#         )
 
-class dH_to_dT_conv(nn.Module):
-    def __init__(self, in_channels=2, out_channels=2):
-        super().__init__()
-        self.net = nn.Sequential(
-            nn.Conv2d(in_channels, 16, kernel_size=3, padding=1),  # local receptive field
-            nn.ReLU(),
-            nn.Conv2d(16, out_channels, kernel_size=3, padding=1)  # outputs 2 channels
-        )
-
-    def forward(self, x):
-        return self.net(x)
+#     def forward(self, x):
+#         return self.net(x)
     
 
 # class dH_to_dT_conv_PositionalEncodingPretrained(nn.Module):
@@ -75,17 +76,11 @@ train_loader = dm.train_dataloader()
 
 oro_path = "dataset/CERRA-534/orography.npz"
 oro = np.load(oro_path)["orography"].astype(np.float32)
-H = torch.tensor(oro).squeeze()  # Ensure shape is (1, 534, 534)
 
-# compute dH
-dH_x = torch.abs(H[:, 1:] - H[:, :-1])
-dH_y = torch.abs(H[1:, :] - H[:-1, :])
-
-dHx_pad = torch.nn.functional.pad(dH_x, (1,0), mode='replicate')
-dHy_pad = torch.nn.functional.pad(dH_y.unsqueeze(0), (0, 0, 1, 0), mode='replicate').squeeze(0)
-
-dH_stack = torch.stack([dHx_pad, dHy_pad], dim=0).unsqueeze(0).float().cuda()  # (1,2,H,W)
-
+H = torch.tensor(oro) # Ensure shape is (1, 534, 534)
+print(H.shape)
+dH_stack = DISA_abs_horizontal_vertical_differences(H, output="concat",soft=False)
+print(dH_stack.shape)
 
 # ---------------------- MODEL ----------------------
 
@@ -98,17 +93,11 @@ loss_fn = nn.MSELoss()
 
 for batch in tqdm(train_loader, total=8640):
     T, y, _, _ = batch
-    T = T.squeeze().float().cuda()  # (H, W)
-
+    T = T.squeeze(1,2).float().cuda()  # (H, W)
     # Compute target gradients (NO grad tracking)
     with torch.no_grad():
-        dT_x = torch.abs(T[:, 1:] - T[:, :-1])
-        dT_y = torch.abs(T[1:, :] - T[:-1, :])
-
-        dT_x_pad = torch.nn.functional.pad(dT_x, (1,0), mode='replicate')
-        dT_y_pad = torch.nn.functional.pad(dT_y.unsqueeze(0), (0, 0, 1, 0), mode='replicate').squeeze(0)
-
-        dT_stack = torch.stack([dT_x_pad, dT_y_pad], dim=0).unsqueeze(0).cuda()
+        dT_stack = DISA_abs_horizontal_vertical_differences(T, output="concat",soft=False)
+        print("dT_stack shape:", dT_stack.shape)
 
     # Forward & Loss
     dT_stack_pred = model(dH_stack)
