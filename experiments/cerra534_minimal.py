@@ -43,10 +43,11 @@ args = parser.parse_args()
 if args.logname is None:
     args.logname = args.model
 
-# Ensure we don't overwrite an existing outputs/<model>/<logname> directory.
+# Ensure we don't overwrite an existing outputs/<model>/<logname> directory if we are in training mode
+
 base_parent = f"outputs/{args.model}"
 base_path = os.path.join(base_parent, args.logname)
-if os.path.exists(base_path):
+if args.vis is None and os.path.exists(base_path):
     for i in range(1, 21):  # try appending 1..20
         candidate = f"{args.logname}_{i}"
         candidate_path = os.path.join(base_parent, candidate)
@@ -55,6 +56,10 @@ if os.path.exists(base_path):
             break
     else:
         raise ValueError(f"Could not find a non-existing logname for {base_path} after 20 attempts.")
+elif args.vis is not None:
+    # In visualization mode, ensure the specified logname exists
+    if not os.path.exists(base_path):
+        raise ValueError(f"Logname path for visualization does not exist: {base_path}")
 LOG_DIR = f"outputs/{args.model}/{args.logname}" #no Slash logs as it creates a wandb folder anyways
 CKPT_DIR = f"outputs/{args.model}/{args.logname}/checkpoints"
 PRINT_DIR = f"outputs/{args.model}/{args.logname}/vis"
@@ -129,6 +134,7 @@ sched_kwargs = {
     "warmup_start_lr": 1e-8,
     "eta_min": 1e-8,
 }
+loss_kwargs = {"lambda_oro": 0.01}  # weight for orography loss term
 model = cl.load_forecasting_module(
     data_module=dm,
     model=args.model,
@@ -137,12 +143,13 @@ model = cl.load_forecasting_module(
     optim_kwargs=optim_kwargs,
     sched="linear-warmup-cosine-annealing",
     sched_kwargs=sched_kwargs,
-    train_loss="mse",
+    train_loss="mse_oro",
     val_loss=["rmse"],
     test_loss=["rmse"],
     train_target_transform=None,
     val_target_transform=["denormalize"],
     test_target_transform=["denormalize"],
+    loss_kwargs=loss_kwargs,
 )
 if PRINTS: print("Model ready.")
 
@@ -169,6 +176,7 @@ config = {
     "model_kwargs": _make_serializable(model_kwargs),
     "optim_kwargs": _make_serializable(optim_kwargs),
     "sched_kwargs": _make_serializable(sched_kwargs),
+    "loss_kwargs": _make_serializable(loss_kwargs),
 }
 script_path = os.path.abspath(__file__)
 train_cmd = (
@@ -265,4 +273,3 @@ else:
         is_global=False,
         ) 
 
-    
