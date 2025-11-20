@@ -8,17 +8,19 @@ from pytorch_lightning.callbacks import (
 )
 from pytorch_lightning.loggers.tensorboard import TensorBoardLogger
 from pytorch_lightning.loggers.wandb import WandbLogger
-import json
+import sys
 import os
 import argparse
-import numpy as np
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from utils import write_info_json
+
+from climate_learn.metrics.utils import LAGG_REGISTRY
 PRINTS = True
 MODEL_REG = ["vit","vitcc", "vitcc2vit","vitfuse","geofar","geofar_v2", "vitginr"]
 MODEL_REG_ORO = MODEL_REG[1: ] # remove "vit" without orography
 MODEL_REG_GEO = ["geofar","geofar_v2","vitginr"]
 
 # PARSER ––––––––––––––––––––––––––––––––––––––––––––––––––––––––
-
 parser = argparse.ArgumentParser()
 
 ## OPTIONAL ARGUMENTS
@@ -39,15 +41,12 @@ parser.add_argument("model", choices=MODEL_REG)
 parser.add_argument("--vis",type=str, default=None,help="If given, visualize the model from the given checkpoint name (without .ckpt) instead of training.")
 args = parser.parse_args()
 
-
 if args.logname is None:
     args.logname = args.model
 
-# Ensure we don't overwrite an existing outputs/<model>/<logname> directory if we are in training mode
-
 base_parent = f"outputs/{args.model}"
 base_path = os.path.join(base_parent, args.logname)
-if args.vis is None and os.path.exists(base_path):
+if args.vis is None and os.path.exists(base_path): # If vis-> dont want new log name-> keep it
     for i in range(1, 21):  # try appending 1..20
         candidate = f"{args.logname}_{i}"
         candidate_path = os.path.join(base_parent, candidate)
@@ -60,6 +59,7 @@ elif args.vis is not None:
     # In visualization mode, ensure the specified logname exists
     if not os.path.exists(base_path):
         raise ValueError(f"Logname path for visualization does not exist: {base_path}")
+    
 LOG_DIR = f"outputs/{args.model}/{args.logname}" #no Slash logs as it creates a wandb folder anyways
 CKPT_DIR = f"outputs/{args.model}/{args.logname}/checkpoints"
 PRINT_DIR = f"outputs/{args.model}/{args.logname}/vis"
@@ -71,14 +71,12 @@ if args.vis: ## check that chekpoint exists
         raise ValueError(f"Checkpoint path for visualization does not exist: {ckpt_path}")
     args.checkpoint = ckpt_path
 
-# END PARSER ––––––––––––––––––––––––––––––––––––––––––––––––––––––––
-
+# END PARSER ––––––––––––––––––––––––––––––––––––––––––––––––––––––––d
 
 # VARIABLES ––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 in_vars =  ["2m_temperature"]
 out_vars = ["2m_temperature"]
 # END VARIABLES ––––––––––––––––––––––––––––––––––––––––––––––––––––––––
-
 
 # DATA MODULE –––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 dm = cl.data.IterDataModule(
@@ -126,15 +124,23 @@ if args.model in MODEL_REG_GEO:
         model_kwargs["conv_start_size"] = 32 # v2: 24 !!
         model_kwargs["siren_hidden"] = 64 # v2: 48 !!
 
-
-optim_kwargs = {"lr": 5e-4, "weight_decay": 1e-5, "betas": (0.9, 0.99)}
+optim_kwargs = {
+    "lr": 5e-4, 
+    "weight_decay": 1e-5, 
+    "betas": (0.9, 0.99)
+}
 sched_kwargs = {
     "warmup_epochs": 5,
     "max_epochs": 20,
     "warmup_start_lr": 1e-8,
     "eta_min": 1e-8,
 }
-loss_kwargs = {"lambda_oro": 0.01}  # weight for orography loss term
+loss_kwargs = {
+    "lambda_oro": 0.1, # weight for orography loss term
+    "lagg": "conv",
+}  
+assert loss_kwargs["lagg"] in LAGG_REGISTRY, f"Method {loss_kwargs['lagg']} not recognized. Choose from {LAGG_REGISTRY}." 
+
 model = cl.load_forecasting_module(
     data_module=dm,
     model=args.model,
@@ -151,53 +157,10 @@ model = cl.load_forecasting_module(
     test_target_transform=["denormalize"],
     loss_kwargs=loss_kwargs,
 )
-if PRINTS: print("Model ready.")
-
+if PRINTS: print("Model ready.") 
 # END LEARNING MODEL ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
-# SAVE CONFIG IN CASE ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 
-def _make_serializable(obj):
-    if isinstance(obj, argparse.Namespace):
-        return _make_serializable(vars(obj))
-    if isinstance(obj, dict):
-        return {k: _make_serializable(v) for k, v in obj.items()}
-    if isinstance(obj, (list, tuple)):
-        return [_make_serializable(v) for v in obj]
-    try:
-        if isinstance(obj, np.ndarray):
-            return obj.tolist()
-    except Exception:
-        pass
-    return obj
-
-os.makedirs(INFO_DIR, exist_ok=True)
-config = {
-    "args": _make_serializable(args),
-    "model_kwargs": _make_serializable(model_kwargs),
-    "optim_kwargs": _make_serializable(optim_kwargs),
-    "sched_kwargs": _make_serializable(sched_kwargs),
-    "loss_kwargs": _make_serializable(loss_kwargs),
-}
-script_path = os.path.abspath(__file__)
-train_cmd = (
-    f"python {script_path} {args.model}"
-    f" --cerra534_dir {args.cerra534_dir}"
-    f" --pred_range {args.pred_range}"
-    f" --bs {args.bs}"
-    f" --max_epochs {args.max_epochs}"
-    f" --patience {args.patience}"
-    f" --gpu {args.gpu}"
-    f" --summary_depth {args.summary_depth}"
-    f" --logname {args.logname}"
-)
-vis_cmd = train_cmd + " --vis epoch_019"
-config["run_commands"] = {"train": train_cmd, "visualize": vis_cmd}
-with open(os.path.join(INFO_DIR, "config.json"), "w") as fh:
-    json.dump(config, fh, indent=2)
-
-# END SAVE CONFIG IN CASE –––––––––––––––––––––––––––––––––––––––––––––
 # START DEFINE OUTPUTS and Trainer ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
-
 pl.seed_everything(0)
 
 wandb_logger = WandbLogger(
@@ -235,6 +198,9 @@ if PRINTS: print("Trainer ready.")
 
 if args.vis is None:
     ### TRAINING MODEL FROM SCRATCH
+    if PRINTS: print("Writing info json...")
+    write_info_json(args, model_kwargs, optim_kwargs, sched_kwargs, loss_kwargs, INFO_DIR)
+
     if PRINTS: print("Start training.")
     trainer.fit(model, datamodule=dm) 
 
