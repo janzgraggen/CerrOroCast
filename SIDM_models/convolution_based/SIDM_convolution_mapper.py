@@ -37,7 +37,8 @@ def sidm_convolution_mapper_training(_model, save_path):
     model = _model.cuda()
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
     loss_fn = nn.MSELoss()
-
+    param_count = sum(p.numel() for p in model.parameters())
+    print(f"[LAGG]: Total number of parameters: {param_count / 1e3:.1f}K")
 
     # ---------------------- TRAINING ----------------------
     for batch in tqdm(train_loader, total=8640):
