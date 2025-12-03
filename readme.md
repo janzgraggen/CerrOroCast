@@ -5,17 +5,33 @@
 > Jan Zgraggen 
 > Supervised by Chang Xu, Devis Tuia
 
+## Setup: 
+
+1. pip or conda install Install Climatelearn according to it's propper specifications. it will be stored at : into  miniconda/...../climate_learn or venv/..../climatelearn
+
+2. Clone [github.com/janzgraggen/climate_learn_oro](https://github.com/janzgraggen/climate_learn_oro) into  the same directory where climate learn is.
+
+3. rename climate_learn     -> climate_learn_old
+          climate_learn_oro -> climate_learn
+
+> Maybe cloning is sufficient...
+
 ## Run Comands
+The following comands are used for obtaining the respective experiments. 
 
-#### --> NEW Minimal
-for running (with hyperparam args)
+### Training The Explicit model 
+in the __main__ comment in the desired model that you want to train then run:
+```bash
+python CerrOroCast/SIDM_models/convolution_based/SIDM_convolution_mapper.py 
+```
 
- `python CerrOroCast/experiments/cerra534_minimal.py --bs=16 --logname=geofar_v2 dataset/CERRA-534/ geofar_v2  6`
+### Forecasting: 
+```bash
+python CerrOroCast/experiments/cerra534_minimal.py              vitginr   --logname=vitginr
+```
 
-for running minimaly
+### Vizsulaisatuin; 
+```bash
+python CerrOroCast/experiments/forecasting/cerra534_minimal.py  vitginr   --logname=vitginr  --vis=epoch_XXX
+```
 
- `python CerrOroCast/experiments/cerra534_minimal.py   vitginr   --logname=vitginr`
-
-#### --> New Visualizing
-for running visualization
- `python CerrOroCast/experiments/forecasting/cerra534_minimal.py  vitginr   --logname=vitginr --vis=epoch_XXX`
