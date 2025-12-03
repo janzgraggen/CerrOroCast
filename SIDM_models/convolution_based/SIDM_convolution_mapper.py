@@ -58,7 +58,6 @@ def sidm_convolution_mapper_training(_model, save_path):
 
 
     # ---------------------- SAVE --------------------
-    save_path = "outputs/SIDM_models/SIDM_convolution_based/dH_to_dT_conv.pt"
     save_dir = os.path.dirname(save_path)
 
     os.makedirs(save_dir, exist_ok=True) # Create directory if it doesn't exist
@@ -66,17 +65,8 @@ def sidm_convolution_mapper_training(_model, save_path):
     print("Model saved to", save_path)
 
 if __name__ == "__main__":
-    #model = dH_to_dT_conv()
-    #save_path = "outputs/SIDM_models/SIDM_convolution_based/dH_to_dT_conv.pt"
-    model = dH_to_dT_conv_PE(
-        img_size=(534,534),
-        in_channels=2,
-        out_channels=2,
-        n_sh_coeff=36,
-        conv_start_size=32,
-        conv_start_size_enc=64,
-        siren_hidden=128,
-        oro_path="dataset/CERRA-534/orography.npz"
-    )
-    save_path = "outputs/SIDM_models/SIDM_convolution_based/dH_to_dT_conv_PE.pt"
+    model = dH_to_dT_conv()
+    save_path = "outputs/SIDM_models/SIDM_convolution_based/dH_to_dT_conv.pt"
+    # model = dH_to_dT_conv_PE() ## default params are OK! 
+    # save_path = "outputs/SIDM_models/SIDM_convolution_based/dH_to_dT_conv_PE.pt"
     sidm_convolution_mapper_training(model, save_path=save_path)
