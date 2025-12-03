@@ -19,6 +19,7 @@ PRINTS = True
 MODEL_REG = ["vit","vitcc", "vitcc2vit","vitfuse","geofar","geofar_v2", "vitginr"]
 MODEL_REG_ORO = MODEL_REG[1: ] # remove "vit" without orography
 MODEL_REG_GEO = ["geofar","geofar_v2","vitginr"]
+MODEL_REG_FAR = ["geofar","geofar_v2"]
 
 # PARSER ––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 parser = argparse.ArgumentParser()
@@ -119,10 +120,13 @@ if args.model in MODEL_REG_ORO:
 
 if args.model in MODEL_REG_GEO:
         ### Aditional Params for Geo Encoding
-        model_kwargs["n_coeff"] = 36 # square of int
         model_kwargs["n_sh_coeff"] = 36 # square of int
         model_kwargs["conv_start_size"] = 32 # v2: 24 !!
         model_kwargs["siren_hidden"] = 64 # v2: 48 !!
+
+if args.model in MODEL_REG_FAR:
+    ### Aditional Params for FAR Encoding
+    model_kwargs["n_coeff"] = 36 # square of int
 
 optim_kwargs = {
     "lr": 5e-4, 
