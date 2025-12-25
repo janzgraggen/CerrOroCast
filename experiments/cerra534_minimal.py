@@ -31,6 +31,9 @@ parser.add_argument("--patience", type=int, default=5)
 parser.add_argument("--gpu", type=int, default=0)
 parser.add_argument("--bs", type=int, default=16)
 parser.add_argument("--logname", type=str, default=None)
+parser.add_argument("--loss", type=str, default="mse",choices=["mse", "mse_oro"]) # mse or mse_oro
+parser.add_argument("--reg_lambda", type=float, default=0.1) # weight for orography loss term
+parser.add_argument("--lagg", type=str, default="conv_PE",choices=LAGG_REGISTRY) # if given, override default lagg method
 
 ## MANDATORY OPTIONAL ARGS
 parser.add_argument("--cerra534_dir",type=str,default="dataset/CERRA-534/")
@@ -64,6 +67,7 @@ elif args.vis is not None:
 LOG_DIR = f"outputs/{args.model}/{args.logname}" #no Slash logs as it creates a wandb folder anyways
 CKPT_DIR = f"outputs/{args.model}/{args.logname}/checkpoints"
 PRINT_DIR = f"outputs/{args.model}/{args.logname}/vis"
+ABS_BIAS_PRINT_DIR = f"outputs/mean_abs_bias/{args.model}/{args.logname}/"
 INFO_DIR = f"outputs/{args.model}/{args.logname}/info"
 
 if args.vis: ## check that chekpoint exists
@@ -140,8 +144,8 @@ sched_kwargs = {
     "eta_min": 1e-8,
 }
 loss_kwargs = {
-    "lambda_oro": 0.1, # weight for orography loss term
-    "lagg": "conv",
+    "lambda_oro": args.reg_lambda, # weight for orography loss term
+    "lagg": "conv_PE", # choose from LAGG_REGISTRY
 }  
 assert loss_kwargs["lagg"] in LAGG_REGISTRY, f"Method {loss_kwargs['lagg']} not recognized. Choose from {LAGG_REGISTRY}." 
 
@@ -153,7 +157,7 @@ model = cl.load_forecasting_module(
     optim_kwargs=optim_kwargs,
     sched="linear-warmup-cosine-annealing",
     sched_kwargs=sched_kwargs,
-    train_loss="mse_oro",
+    train_loss=args.loss, # or mse_oro <----- now in parser
     val_loss=["rmse"],
     test_loss=["rmse"],
     train_target_transform=None,
@@ -231,6 +235,7 @@ else:
 
     denorm = model.test_target_transforms[0]
     if PRINTS: print("Visualize...")
+    ## ––––––––––––––––––––––––––––––––––– Visualize GT, Pred , Bias at index 0
     cl.utils.visualize_sphere_at_index_save(
         model,
         dm,
@@ -242,4 +247,13 @@ else:
         index=0, # the index of the frame in the dataset you want to visualize
         is_global=False,
         ) 
-
+    ## ––––––––––––––––––––––––––––––––––– Pixelwise Mean Abs Bias
+    cl.utils.visualize_pixelwise_mean_abs_bias(
+        mm=model,
+        dm=dm,
+        land_mask="/home/janz/dataset/CERRA-534/landsea.npz",
+        out_transform=denorm,
+        variable="2m_temperature",
+        out_path=ABS_BIAS_PRINT_DIR,
+        save_data_path=ABS_BIAS_PRINT_DIR+"mean_abs_bias.npz",
+    )
