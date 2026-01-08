@@ -135,6 +135,9 @@ def main():
     for bf in bias_files:
         bmap, lat, lon = load_bias_map(bf)
         bias_maps.append(bmap)
+    MAB = [np.mean(bm) for bm in bias_maps]
+    for bf, mab in zip(bias_files, MAB):
+        print(f"{path_name_dict[bf]}: Mean Abs Bias = {mab:.4f} K")
 
     # Stepwise comparison
     for i in range(len(bias_maps)-1):

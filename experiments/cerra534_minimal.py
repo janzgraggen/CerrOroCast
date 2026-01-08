@@ -256,4 +256,5 @@ else:
         variable="2m_temperature",
         out_path=ABS_BIAS_PRINT_DIR,
         save_data_path=ABS_BIAS_PRINT_DIR+"mean_abs_bias.npz",
+        modelname=args.model,
     )
