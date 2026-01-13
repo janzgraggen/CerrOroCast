@@ -6,8 +6,8 @@ import climate_learn as cl
 import numpy as np
 import os
 
-from climate_learn.models.hub.sidm import dH_to_dT_conv, dH_to_dT_conv_PE
-from climate_learn.metrics.metrics import DISA_abs_horizontal_vertical_differences
+from climate_learn.models.hub.sidm import dH_to_dT_conv, H_to_dT_conv_PE
+from climate_learn.metrics.metrics import SO_abs_horizontal_vertical_differences
 def sidm_convolution_mapper_training(_model, save_path):
     # ---------------------- DATASET ----------------------
     dm = cl.data.IterDataModule(
@@ -31,8 +31,10 @@ def sidm_convolution_mapper_training(_model, save_path):
     oro_path = "dataset/CERRA-534/orography.npz"
     oro = np.load(oro_path)["orography"].astype(np.float32)
     H = torch.tensor(oro) # Ensure shape is (1, 534, 534)
-    dH_stack = DISA_abs_horizontal_vertical_differences(H, output="concat",soft=False) # (B,2, H, W)
-
+    if model.__class__.__name__ == "H_to_dT_conv_PE":
+        dH_stack = H 
+    else:
+        dH_stack = SO_abs_horizontal_vertical_differences(H, output="concat",soft=False) # (B,2, H, W)
     # ---------------------- MODEL ----------------------
     model = _model.cuda()
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
@@ -46,7 +48,7 @@ def sidm_convolution_mapper_training(_model, save_path):
         T = T.squeeze(1,2).float().cuda()  # (H, W)
         
         with torch.no_grad(): # Compute target dT (NO grad tracking)
-            dT_stack = DISA_abs_horizontal_vertical_differences(T, output="concat",soft=False) # (B,2, H, W)
+            dT_stack = SO_abs_horizontal_vertical_differences(T, output="concat",soft=False) # (B,2, H, W)
 
         # Forward & Loss
         dT_stack_pred = model(dH_stack)
@@ -67,7 +69,7 @@ def sidm_convolution_mapper_training(_model, save_path):
 
 if __name__ == "__main__":
     model = dH_to_dT_conv()
-    save_path = "outputs/SIDM_models/SIDM_convolution_based/dH_to_dT_conv.pt"
-    # model = dH_to_dT_conv_PE() ## default params are OK! 
-    # save_path = "outputs/SIDM_models/SIDM_convolution_based/dH_to_dT_conv_PE.pt"
+    save_path = "outputs/DM_models/DM_convolution_based/dH_to_dT_conv.pt"
+    # model = H_to_dT_conv_PE() ## default params are OK! 
+    # save_path = "outputs/DM_models/DM_convolution_based/H_to_dT_conv_PE.pt"
     sidm_convolution_mapper_training(model, save_path=save_path)
