@@ -6,7 +6,7 @@ import climate_learn as cl
 import numpy as np
 import os
 
-from climate_learn.models.hub.sidm import dH_to_dT_conv, H_to_dT_conv_PE
+from climate_learn.models.hub.domain_mapping import dH_to_dT_conv, H_to_dT_conv_PE
 from climate_learn.metrics.metrics import SO_abs_horizontal_vertical_differences
 def sidm_convolution_mapper_training(_model, save_path):
     # ---------------------- DATASET ----------------------
