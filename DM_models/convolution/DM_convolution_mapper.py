@@ -31,8 +31,8 @@ def sidm_convolution_mapper_training(_model, save_path):
     oro_path = "dataset/CERRA-534/orography.npz"
     oro = np.load(oro_path)["orography"].astype(np.float32)
     H = torch.tensor(oro) # Ensure shape is (1, 534, 534)
-    if model.__class__.__name__ == "H_to_dT_conv_PE":
-        dH_stack = H 
+    if _model.__class__.__name__ == "H_to_dT_conv_PE":
+        dH_stack = H.unsqueeze(0).float().cuda()  # (1,1, H, W)
     else:
         dH_stack = SO_abs_horizontal_vertical_differences(H, output="concat",soft=False) # (B,2, H, W)
     # ---------------------- MODEL ----------------------
